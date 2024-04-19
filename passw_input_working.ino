@@ -124,6 +124,8 @@ void typePeriod() {
 void printPassword(const PasswordElement* password, size_t length) {
   for (size_t i = 0; i < length; i++) {
     printPasswordElement(password[i]);
+    delay(200);
+
   }
 }
 
@@ -139,6 +141,9 @@ void printPasswordElement(const PasswordElement& element) {
         break;
       case PASS_KEY_TAB:
         Keyboard.write(KEY_TAB);
+        break;
+      case PASS_KEY_ESC:
+        Keyboard.write(KEY_ESC);
         break;
       // Handle other special keys as needed
     }

@@ -1,63 +1,84 @@
 import serial
 import time
 import subprocess
+from shutil import copyfile
 
 SKETCH_NAME = "passw_input_working.ino"
+PASSWD_TEMPLATE = "./passwords_def_template.h"
+#TODO: allow update of an existing passwd file
+PASSWD_TMP_FILE = "./passwords_def.h"
 
 def main():
+
     ports = find_arduino_serial_port()
-    if ports:
-        for port in ports:
-            print(f"Arduino found at: {port}")
-    else:
-        print("No Arduino found")
-        exit()
+    port = select_port(ports)
+
+    print(f'Selected port: {port}')
+
+    passwds = gather_passwds()
+
+    passwd_file = create_passwd_file(passwds)
     
-    citrix_value = input("Enter the new CITRIX password: ")
-    win_value = input("Enter the new WIN password: ")
 
-    ports = find_arduino_serial_port()
-    if ports:
-        if len(ports) > 1:
-            selected_port = select_port(ports)
-            print(f"{selected_port}")
-            print(f"Selected port: {selected_port}")
-        elif len(ports) == 1:
-            selected_port = ports[0]
-            print(f"Selected port out of one: {selected_port}")
-        else:
-            print(f"could not select port")
-    else:
-        print("No ports with Arduino detected. Exiting.")
-        exit()
-
-    print(f"starting serial on {selected_port}")
     # Open serial port (replace 'COM3' with your Arduino's port)
-    ser = serial.Serial("/dev/{selected_port}", 9600)
-    time.sleep(2)  # Wait for the connection to initialize
+    #ser = serial.Serial("{selected_port}", 9600)
+    #time.sleep(2)  # Wait for the connection to initialize
+    flash_sketch(port, 'SparkFun:avr:promicro', SKETCH_NAME)
 
-    if citrix_value:
-        ser.write(f'UPDATE CITRIX {citrix_value}\n'.encode())
-    if win_value:
-        ser.write(f'UPDATE WIN {win_value}\n'.encode())
-    ser.close()
-    print("Closing Serial")
-    print("Updating Sketch")
+def gather_passwds():
+    enter = 'PasswordElement(PASS_KEY_ENTER),'
+    tab = 'PasswordElement(PASS_KEY_TAB),'
+    passwds = []
+    for i in range(0,3):
+       cont = True
+       password_def = []
+       while cont:
+         print(f"Enter password {i+1} (value, tab, enter, done):")
+         inp = input()
+         if inp == 'tab':
+            password_def.append(tab)
+         elif inp == 'enter':
+            password_def.append(enter)
+         elif inp == 'done':
+            cont = False
+            passwds.append(password_def)
+         else:
+            password_def.append(f'PasswordElement("{inp}"),')
+    return passwds
 
-    update_sketch(citrix_value, win_value)
+def create_passwd_file(passwd):
+    copyfile(PASSWD_TEMPLATE, PASSWD_TMP_FILE)
 
-def update_sketch(new_citrix, new_win):
-    with open(SKETCH_NAME, "r") as file:
+    with open(PASSWD_TMP_FILE, "r") as file:
         lines = file.readlines()
-
-    with open(SKETCH_NAME, "w") as file:
+        
+    with open(PASSWD_TMP_FILE, "w") as file:
         for line in lines:
-            if new_citrix and line.startswith("String CITRIX="):
-                file.write(f'String CITRIX="{new_citrix}";\n')
-            elif new_win and line.startswith("String WIN="):
-                file.write(f'String WIN="{new_win}";\n')
+            if line.startswith('//PASSWD1'):
+                for e in passwd[0]:
+                  file.write(f'{e}\n')
+            elif line.startswith('//PASSWD2'):
+                for e in passwd[1]:
+                  file.write(f'{e}\n')
+            elif line.startswith('//PASSWD3'):
+                for e in passwd[2]:
+                  file.write(f'{e}\n')
             else:
                 file.write(line)
+    return PASSWD_TMP_FILE
+
+def flash_sketch(port, fqbn, sketch_path):
+    try:
+        # Compile the sketch
+        compile_command = ["arduino-cli", "compile", "--fqbn", fqbn, sketch_path]
+        subprocess.run(compile_command, check=True)
+
+        # Upload the sketch
+        upload_command = ["arduino-cli", "upload", "--port", port, "--fqbn", fqbn, sketch_path]
+        subprocess.run(upload_command, check=True)
+        print("Sketch uploaded successfully.")
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred: {e}")
 
 def find_arduino_serial_port():
     try:
@@ -72,6 +93,9 @@ def find_arduino_serial_port():
         return None
 
 def select_port(ports):
+    if ports == None:
+        print("No Arduino found")
+        exit()
     print("Available Ports:")
     for i, port in enumerate(ports):
         print(f"{i}: {port}")

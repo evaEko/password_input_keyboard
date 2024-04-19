@@ -7,6 +7,7 @@
 enum SpecialKey {
   PASS_KEY_NONE,
   PASS_KEY_ENTER,
+  PASS_KEY_ESC,
   PASS_KEY_TAB
 };
 
