@@ -1,6 +1,7 @@
 import serial
 import time
 import subprocess
+import os
 from shutil import copyfile
 
 SKETCH_NAME = "passw_input_working.ino"
@@ -13,17 +14,30 @@ def main():
     ports = find_arduino_serial_port()
     port = select_port(ports)
 
-    print(f'Selected port: {port}')
-
-    passwds = gather_passwds()
-
-    passwd_file = create_passwd_file(passwds)
+    use_existing_file = input("Do you want to use an existing password file? (yes/no): ").strip().lower()
     
+    if use_existing_file in ('yes', 'y'):
+        # Ask the user to provide the file path
+        existing_file_path = input("Enter the path to the existing password file: ").strip()
+        if os.path.isfile(existing_file_path):
+            passwd_file = existing_file_path
+        else:
+            print(f"File {existing_file_path} does not exist. Exiting.")
+            return
+    else:
+
+        print(f'Selected port: {port}')
+
+        passwds = gather_passwds()
+
+        passwd_file = create_passwd_file(passwds)
+        
 
     # Open serial port (replace 'COM3' with your Arduino's port)
     #ser = serial.Serial("{selected_port}", 9600)
     #time.sleep(2)  # Wait for the connection to initialize
     flash_sketch(port, 'SparkFun:avr:promicro', SKETCH_NAME)
+    safe_delete_passwd_file (PASSWD_TMP_FILE)
 
 def gather_passwds():
     enter = 'PasswordElement(PASS_KEY_ENTER),'
@@ -89,8 +103,8 @@ def find_arduino_serial_port():
         ports = result.decode('utf-8').strip().split('\n')
         return ports if ports else None
     except subprocess.CalledProcessError as e:
-        print(f"Error: {e}")
-        return None
+        print(f"Could not find mcu. Error: {e}")
+        exit()
 
 def select_port(ports):
     if ports == None:
@@ -109,5 +123,16 @@ def select_port(ports):
                 print("Invalid selection. Please try again.")
         except ValueError:
             print("Invalid input. Please enter a number.")
+
+def safe_delete_passwd_file(filepath):
+    user_response = input(f"Do you want to delete the file {filepath}? (yes/no): ").strip().lower()
+    if user_response in ('yes', 'y'):
+        try:
+            os.remove(filepath)
+            print(f"Successfully deleted {filepath}")
+        except Exception as e:
+            print(f"Failed to delete {filepath}: {e}")
+    else:
+        print(f"File {filepath} was not deleted.")
 
 main()
